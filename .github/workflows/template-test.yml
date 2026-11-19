@@ -1,0 +1,51 @@
+name: Template smoke test
+
+on:
+  pull_request:
+    paths:
+      - 'copier.yml'
+      - 'template/**'
+      - '.github/workflows/template-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render-template:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out template
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Copier
+        run: python -m pip install 'copier==9.19.1'
+
+      - name: Generate example projects
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for example in "dental-memo|Dental Memo" "chessboard-playback|Chessboard Playback"; do
+            directory="${example%%|*}"
+            project_name="${example#*|}"
+            destination="$RUNNER_TEMP/$directory"
+
+            copier copy --defaults --data "project_name=$project_name" . "$destination"
+
+            test -f "$destination/AGENTS.md"
+            test -f "$destination/.copier-answers.yml"
+            grep -Fxq "Project: $project_name" "$destination/AGENTS.md"
+            grep -Fxq "project_name: $project_name" "$destination/.copier-answers.yml"
+
+            echo "PASS: $project_name" >> "$GITHUB_STEP_SUMMARY"
+          done
