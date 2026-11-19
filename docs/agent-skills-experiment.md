@@ -1,14 +1,14 @@
-# Shared agent skills: provisional layout and symlink experiment
+# Shared agent skills and the symlink experiment
 
-## Status
+## Accepted layout
 
-`AGENTS.md` is the canonical instruction file, with `CLAUDE.md` referencing it.
-The two skill drafts have one source each under `template/skills/`. This proposes
-a generated root `skills/` directory; its final location still needs owner
-approval. Neither discovery links nor `_preserve_symlinks` have been added to
-the actual template. Both are confined to disposable test fixtures.
+The owner selected Variant A for PR #3. Copier generates a canonical `skills/`
+directory at the project root, with `.claude/skills` and `.agents/skills` both
+pointing to `../skills`. The template enables `_preserve_symlinks: true` so the
+two clients share the same definitions. Each generated project owns its copy of
+the canonical files and can customize them independently.
 
-## Models compared
+## Historical comparison
 
 | Property | A: whole directory | B: individual skill directories |
 | --- | --- | --- |
@@ -21,48 +21,31 @@ the actual template. Both are confined to disposable test fixtures.
 | Copier default (`_preserve_symlinks: false`) | Readable copies, no shared source at discovery paths | Readable copies, no shared source at discovery paths |
 | Copier with `_preserve_symlinks: true` | Relative links and shared source preserved | Relative links and shared source preserved |
 
-The filesystem checks read both `SKILL.md` files through both client paths,
-compare their contents and resolved paths with the canonical source, inspect Git
-index modes and stored link targets, and clone both template fixtures and linked
-generated projects. Both Dental Memo and Chessboard Playback are generated for
-each Copier setting and link model. The baseline examples are also generated
-without discovery links, and editing one project's skill leaves the other
-project and template source unchanged.
+The comparison runs in disposable Git repositories. It generates Dental Memo
+and Chessboard Playback for each layout with Copier defaults and with symlink
+preservation enabled. It reads both skills through both client paths, checks
+whether those paths refer to the canonical files, and verifies the Git modes and
+targets after a clone for preserved links.
 
-## Evidence and limits
+## Discovery evidence
 
-- Local macOS / Python 3.9.6 / Copier 9.10.3: all five smoke tests passed (ten
-  generations). This is supplemental evidence: local Python cannot install the
-  CI-pinned Copier 9.19.1. Both skill drafts also passed the skill format validator.
-- `.github/workflows/template-test.yml` runs the same tests on `ubuntu-latest`
-  with Python 3.12 and Copier 9.19.1. Check the implementation branch's Actions
-  result for authoritative evidence for that environment. It retains only
-  `contents: read` permission and disables persisted checkout credentials.
-- Filesystem success does not establish client discovery. Installed versions are
-  Claude Code 2.1.311 and Codex CLI 0.141.0. A Codex app-server discovery probe
-  could not initialize under local sandbox restrictions; no `skills/list` result
-  was obtained. Claude discovery was not exercised: the installed CLI help did
-  not expose a discovery-only command, and no model calls were made. Actual
-  discovery for either layout remains unverified in both clients.
+The discovery experiments used isolated repositories containing `triage` and
+`task-readiness`. The owner confirmed both layouts in Claude Code and Codex,
+including their VSCode interfaces. The recorded versions were Claude Code
+`2.1.327` and Codex extension `26.1111.21308` on VSCode `1.144.0` (macOS arm64).
+An independent probe of the extension's bundled Codex backend
+`0.169.0-alpha.11.1` returned both skills as enabled repository skills through
+`skills/list` for both variants. Neither skill appeared in the control, which
+contained the same canonical files without discovery links. The discovery
+checks did not require running either skill procedure.
 
-To repeat the filesystem experiment, install the CI-pinned Copier version using
-Python 3.12 and run `python tests/template_smoke.py`. Each variant is built,
-committed, cloned and generated in temporary directories; tests leave the real
-template's layout unchanged.
+## Regression checks
 
-## Owner decisions and next step
-
-1. Approve or revise the proposed root `skills/` location.
-2. Choose A or B after checking actual client discovery. If a linked model is
-   adopted, approve enabling Copier's `_preserve_symlinks: true` so generated
-   discovery paths retain one shared source.
-
-Recommendation: keep discovery wiring deferred while reviewing these drafts.
-Provisionally prefer A for its fewer links and automatic inclusion of new shared
-skills, provided both clients discover it. B is useful if client-specific skill
-selection is needed. This recommendation is a proposal, not an accepted layout.
-
-After approval, add the selected links and Copier setting in a focused follow-up,
-run the smoke tests, and verify both skills appear in each client's skill list in
-a generated project. Record the client versions and observed discovery results;
-opening files through symlinks alone is insufficient evidence.
+Run `python tests/template_smoke.py` with Python 3.12 and Copier 9.19.1, the
+versions used by the Ubuntu GitHub Actions workflow. The baseline test renders
+both projects from the checked-out template and verifies the actual links, both
+skills, and the links after Git checkout. It also checks that editing one
+project's canonical skill is visible through both of its client paths and leaves
+the other project and template source intact. The four A/B tests reproduce the
+historical filesystem comparison. CI covers generation and Git checkout.
+Client discovery was checked separately in the experiments above.

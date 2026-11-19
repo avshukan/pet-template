@@ -1,20 +1,23 @@
 # Pet Template
 
-Minimal Copier template for independent projects. It supplies shared agent
-instructions and reusable skill drafts without selecting an application stack.
+Minimal Copier template for independent projects with shared agent instructions
+and reusable skills.
 
 ```sh
 copier copy --defaults --data 'project_name=Dental Memo' . /path/to/dental-memo
 copier copy --defaults --data 'project_name=Chessboard Playback' . /path/to/chessboard-playback
 ```
 
-Generated `AGENTS.md` is canonical; `CLAUDE.md` contains only `@AGENTS.md`.
-`skills/triage/SKILL.md` and `skills/task-readiness/SKILL.md` are proposed shared
-skill sources. The root `skills/` layout is provisional, pending owner approval.
-No `.claude/skills` or `.agents/skills` discovery links are generated yet. Agents
-can read a skill by its explicit file path; automatic client discovery is not
-claimed. See [the symlink experiment](docs/agent-skills-experiment.md) for results
-and the decisions needed before wiring discovery.
+Generated `AGENTS.md` holds the shared instructions, and `CLAUDE.md` references
+it with `@AGENTS.md`. The canonical definitions for `triage` and `task-readiness`
+live in each generated project's root `skills/` directory. Claude Code discovers
+them through `.claude/skills -> ../skills`, and Codex uses
+`.agents/skills -> ../skills`. Copier preserves both relative symlinks with
+`_preserve_symlinks: true`.
+
+Edit or add a shared skill under `skills/` in the generated project. Both clients
+use those files, and each project's changes stay local to that project. Use a
+filesystem and Git checkout that support symlinks.
 
 Run the smoke tests with Python 3.12 and the CI-pinned Copier version:
 
@@ -23,6 +26,7 @@ python -m pip install 'copier==9.19.1'
 python tests/template_smoke.py
 ```
 
-Tests generate both examples in temporary Git repositories, validate their
-instructions, skill metadata and Copier answers, and compare both proposed link
-models. The experiments do not change the template's discovery configuration.
+The smoke tests generate both examples from the checked-out template, verify
+that both discovery paths link to the same skill files, and check that the links
+survive Git checkout. The A/B comparison still runs in disposable fixtures.
+See [the symlink experiment](docs/agent-skills-experiment.md) for the results.

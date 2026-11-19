@@ -1,4 +1,4 @@
-"""Generate both examples and compare proposed symlinks in disposable Git repos."""
+"""Check generated project links and reproduce the A/B symlink experiment."""
 
 import shutil
 import subprocess
@@ -11,6 +11,7 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
+CLIENTS = (".claude", ".agents")
 SKILLS = ("triage", "task-readiness")
 PROJECTS = ("Dental Memo", "Chessboard Playback")
 
@@ -41,26 +42,26 @@ class TemplateSmokeTest(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.scratch = Path(self.temporary.name)
 
-    def source(self, model=None, preserve=False):
+    def experiment_source(self, model, preserve):
         source = self.scratch / "source"
         source.mkdir()
-        shutil.copy2(ROOT / "copier.yml", source / "copier.yml")
-        shutil.copytree(ROOT / "template", source / "template", symlinks=True)
+        config = yaml.safe_load((ROOT / "copier.yml").read_text())
+        config.pop("_preserve_symlinks", None)
         if preserve:
-            with (source / "copier.yml").open("a") as config:
-                config.write("\n_preserve_symlinks: true\n")
-        if model:
-            for client in (".claude", ".agents"):
-                skills = source / "template" / client / "skills"
-                skills.parent.mkdir()
-                if model == "whole-directory":
-                    skills.symlink_to("../skills", target_is_directory=True)
-                else:
-                    skills.mkdir()
-                    for name in SKILLS:
-                        (skills / name).symlink_to(
-                            f"../../skills/{name}", target_is_directory=True
-                        )
+            config["_preserve_symlinks"] = True
+        (source / "copier.yml").write_text(yaml.safe_dump(config))
+        shutil.copytree(ROOT / "template", source / "template", symlinks=True)
+        for client in CLIENTS:
+            skills = source / "template" / client / "skills"
+            skills.unlink()
+            if model == "whole-directory":
+                skills.symlink_to("../skills", target_is_directory=True)
+            else:
+                skills.mkdir()
+                for name in SKILLS:
+                    (skills / name).symlink_to(
+                        f"../../skills/{name}", target_is_directory=True
+                    )
         run("git", "init", "-q", str(source))
         commit_all(source)
         return source
@@ -91,28 +92,31 @@ class TemplateSmokeTest(unittest.TestCase):
         return destination
 
     def check_links(self, root, model, preserved):
-        for client in (".claude", ".agents"):
+        canonical_root = root / "skills"
+        self.assertFalse(canonical_root.is_symlink(), canonical_root)
+        for client in CLIENTS:
             base = root / client / "skills"
             if model == "whole-directory":
-                self.assertEqual(base.is_symlink(), preserved)
+                self.assertEqual(base.is_symlink(), preserved, base)
                 if preserved:
                     self.assertEqual(base.readlink(), Path("../skills"))
+                    self.assertTrue(base.samefile(canonical_root), base)
             for name in SKILLS:
                 folder = base / name
                 if model == "individual-directory":
-                    self.assertEqual(folder.is_symlink(), preserved)
+                    self.assertEqual(folder.is_symlink(), preserved, folder)
                     if preserved:
                         self.assertEqual(folder.readlink(), Path(f"../../skills/{name}"))
-                canonical = root / "skills" / name / "SKILL.md"
+                canonical = canonical_root / name / "SKILL.md"
                 discovered = folder / "SKILL.md"
                 self.assertEqual(discovered.read_text(), canonical.read_text())
-                self.assertEqual(discovered.resolve() == canonical.resolve(), preserved)
+                self.assertEqual(discovered.samefile(canonical), preserved, discovered)
 
     def git_roundtrip(self, root, model, clone, subdirectory=Path(".")):
         if not (root / ".git").exists():
             run("git", "init", "-q", str(root))
             commit_all(root)
-        for client in (".claude", ".agents"):
+        for client in CLIENTS:
             base = subdirectory / client / "skills"
             paths = (
                 [str(base)] if model == "whole-directory"
@@ -129,24 +133,28 @@ class TemplateSmokeTest(unittest.TestCase):
         self.check_links(clone / subdirectory, model, preserved=True)
 
     def test_generated_projects(self):
-        source = self.source()
         outputs = []
         for name in PROJECTS:
-            with self.subTest(project=name):
-                destination = self.generate(source, name)
-                outputs.append(destination)
-                # Discovery layout remains an owner decision, absent in the template.
-                self.assertFalse((destination / ".claude").exists())
-                self.assertFalse((destination / ".agents").exists())
+            destination = self.generate(ROOT, name)
+            self.check_links(destination, "whole-directory", preserved=True)
+            self.git_roundtrip(
+                destination, "whole-directory", self.scratch / f"{destination.name}-checkout"
+            )
+            outputs.append(destination)
         first = outputs[0] / "skills" / "triage" / "SKILL.md"
         second = outputs[1] / "skills" / "triage" / "SKILL.md"
         original = second.read_text()
-        first.write_text("Independent project edit\n")
+        customized = "Independent project edit\n"
+        first.write_text(customized)
+        for client in CLIENTS:
+            discovery_path = Path(client) / "skills" / "triage" / "SKILL.md"
+            self.assertEqual((outputs[0] / discovery_path).read_text(), customized)
+            self.assertEqual((outputs[1] / discovery_path).read_text(), original)
         self.assertEqual(second.read_text(), original)
-        self.assertEqual((source / "template/skills/triage/SKILL.md").read_text(), original)
+        self.assertEqual((ROOT / "template/skills/triage/SKILL.md").read_text(), original)
 
     def experiment(self, model, preserve):
-        source = self.source(model, preserve)
+        source = self.experiment_source(model, preserve)
         checkout = self.scratch / "checkout"
         self.git_roundtrip(source, model, checkout, Path("template"))
         for name in PROJECTS:
