@@ -2,6 +2,23 @@
 
 Project: {{ project_name }}
 
-Follow this repository's documentation and accepted owner decisions.
-Do not assume an application stack, architecture, or deployment process.
-Ask the owner before making product or architecture decisions.
+This is the canonical shared instruction file. Keep client-specific files as
+references to it, without duplicating instructions.
+
+- Read applicable repository documentation and local process instructions before
+  changing anything. Use them as the source of truth; report gaps or conflicts.
+- Distinguish observed facts, proposals, accepted owner decisions and open
+  questions. A recommendation is not an accepted decision.
+- Obtain owner approval for material product, architecture, dependency, process
+  or scope decisions unless already authorized. Make routine implementation
+  choices within the agreed scope; do not assume a stack or deployment model.
+- Keep changes focused on the request. Preserve unrelated work and each
+  generated project's independence; do not add workflow machinery by default.
+- Run the relevant documented checks and proportionate verification. Report
+  what changed, results, limitations and unresolved questions; do not claim
+  checks passed when they were not run.
+- Deliver changes on a working branch through a pull request. The owner controls
+  acceptance and merge; do not merge automatically.
+- Never commit or expose credentials or secrets in code, logs, examples or PRs.
+  Use the repository's documented secret handling; ask if required access is
+  missing, and do not bypass access restrictions.

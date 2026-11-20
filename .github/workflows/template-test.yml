@@ -5,6 +5,7 @@ on:
     paths:
       - 'copier.yml'
       - 'template/**'
+      - 'tests/template_smoke.py'
       - '.github/workflows/template-test.yml'
   workflow_dispatch:
 
@@ -30,22 +31,9 @@ jobs:
       - name: Install Copier
         run: python -m pip install 'copier==9.19.1'
 
-      - name: Generate example projects
+      - name: Generate examples and compare symlink models
         shell: bash
         run: |
           set -euo pipefail
-
-          for example in "dental-memo|Dental Memo" "chessboard-playback|Chessboard Playback"; do
-            directory="${example%%|*}"
-            project_name="${example#*|}"
-            destination="$RUNNER_TEMP/$directory"
-
-            copier copy --defaults --data "project_name=$project_name" . "$destination"
-
-            test -f "$destination/AGENTS.md"
-            test -f "$destination/.copier-answers.yml"
-            grep -Fxq "Project: $project_name" "$destination/AGENTS.md"
-            grep -Fxq "project_name: $project_name" "$destination/.copier-answers.yml"
-
-            echo "PASS: $project_name" >> "$GITHUB_STEP_SUMMARY"
-          done
+          python tests/template_smoke.py
+          echo "PASS: Dental Memo and Chessboard Playback preserve both client links to their shared skills directory. A/B fixtures verified Copier defaults and symlink preservation." >> "$GITHUB_STEP_SUMMARY"
